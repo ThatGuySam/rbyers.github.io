@@ -72,6 +72,48 @@ function jankHandler(e) {
     e.preventDefault();
 }
 
+function waitForScrollEnd () {
+    let last_changed_frame = 0
+    let last_x = window.scrollX
+    let last_y = window.scrollY
+
+    return new Promise( resolve => {
+        function tick(frames) {
+            // We requestAnimationFrame either for 500 frames or until 20 frames with
+            // no change have been observed.
+            if (frames >= 500 || frames - last_changed_frame > 20) {
+                resolve()
+            } else {
+                if (window.scrollX != last_x || window.scrollY != last_y) {
+                    last_changed_frame = frames
+                    last_x = window.scrollX
+                    last_y = window.scrollY
+                }
+                requestAnimationFrame(tick.bind(null, frames + 1))
+            }
+        }
+        tick(0)
+    })
+}
+
+function waitForScrollStart () {
+  var oldPassive = jankHandlerPassive;
+  jankHandlerPassive = $('passive').checked;
+  [touchListenerType, 'wheel'].forEach(function(type) {
+    $('content').removeEventListener(type, jankHandler, {passive:oldPassive});
+    
+    $('content').addEventListener(type, event => {
+      jankHandler(event)
+      waitForScrollEnd()
+        .then(() => {
+          console.log('Scrolling stopped')
+          waitForScrollStart()
+        })
+    }, { passive:jankHandlerPassive, once: true });
+    
+  });
+}
+
 var transformAttr = 'transform' in document.body.style ? 'transform' : 'webkitTransform';
 
 var spin = 0;
@@ -126,6 +168,10 @@ if (supportsPassive) {
     });
   });
 }
+
+$('requestAnimationFrame').addEventListener('click', function() {
+    waitForScrollStart()
+});
 
 // Google analytics
 (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
